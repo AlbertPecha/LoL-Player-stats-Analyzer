@@ -1,0 +1,74 @@
+import pandas as pd
+from riotwatcher import LolWatcher, ApiError
+import requests
+import time
+
+# ==========================================
+# CONFIGURACIÓN (REVISA QUE NO HAYA ESPACIOS)
+# ==========================================
+API_KEY = 'RGAPI-eea53da1-2a79-49de-98df-de57b0e88fa1' 
+REGION_RANSKE = 'europe' 
+REGION_LOL = 'euw1'      
+
+RIVAL_NOMBRE = 'DG Ruby' 
+RIVAL_TAG = 'EUW' 
+CANTIDAD_PARTIDAS = 5  
+# ==========================================
+
+watcher = LolWatcher(API_KEY)
+
+try:
+    print(f"--- INICIANDO DIAGNÓSTICO ---")
+    print(f"Buscando a {RIVAL_NOMBRE}#{RIVAL_TAG}...")
+    
+    url_puuid = f"https://{REGION_RANSKE}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{RIVAL_NOMBRE}/{RIVAL_TAG}"
+    headers = {"X-Riot-Token": API_KEY}
+    
+    respuesta = requests.get(url_puuid, headers=headers)
+    
+    if respuesta.status_code == 200:
+        puuid = respuesta.json()['puuid']
+        print(f"✅ Conexión exitosa. PUUID: {puuid[:10]}...")
+
+        match_ids = watcher.match.matchlist_by_puuid(REGION_RANSKE, puuid, count=CANTIDAD_PARTIDAS)
+        lista_partidas_info = []
+
+        print(f"Analizando {len(match_ids)} partidas...")
+
+        for match_id in match_ids:
+            match_detail = watcher.match.by_id(REGION_RANSKE, match_id)
+            for participant in match_detail['info']['participants']:
+                if participant['puuid'] == puuid:
+                    deaths = participant['deaths'] if participant['deaths'] > 0 else 1
+                    stats = {
+                        'Match ID': match_id,
+                        'Campeón': participant['championName'],
+                        'Resultado': 'Victoria' if participant['win'] else 'Derrota',
+                        'Kills': participant['kills'],
+                        'Deaths': participant['deaths'],
+                        'Assists': participant['assists'],
+                        'KDA': round((participant['kills'] + participant['assists']) / deaths, 2),
+                        'Oro': participant['goldEarned'],
+                        'Posición': participant['individualPosition']
+                    }
+                    lista_partidas_info.append(stats)
+                    print(f" -> OK: {match_id}")
+                    break
+            time.sleep(0.5)
+
+        df = pd.DataFrame(lista_partidas_info)
+        df.to_excel(f'analisis_{RIVAL_NOMBRE}.xlsx', index=False)
+        print(f"\n¡LISTO! Archivo 'analisis_{RIVAL_NOMBRE}.xlsx' creado.")
+
+    elif respuesta.status_code == 401:
+        print("❌ ERROR 401: La clave no es válida. Prueba a copiarla de nuevo del portal.")
+    elif respuesta.status_code == 403:
+        print("❌ ERROR 403: La clave ha caducado o está mal escrita. Verifica en developer.riotgames.com")
+    elif respuesta.status_code == 404:
+        print("❌ ERROR 404: Jugador no encontrado. ¿Estás seguro de que es Agurin#EUW?")
+    else:
+        print(f"❌ Error inesperado: {respuesta.status_code}")
+        print(f"Respuesta de Riot: {respuesta.text}")
+
+except Exception as e:
+    print(f"⚠️ Error de Python: {e}")
