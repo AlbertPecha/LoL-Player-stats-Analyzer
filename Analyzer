@@ -6,7 +6,7 @@ import time
 # ==========================================
 # CONFIGURACIÓN (REVISA QUE NO HAYA ESPACIOS)
 # ==========================================
-API_KEY = 'RGAPI-eea53da1-2a79-49de-98df-de57b0e88fa1' 
+API_KEY = 'YOUR-KEY' 
 REGION_RANSKE = 'europe' 
 REGION_LOL = 'euw1'      
 
